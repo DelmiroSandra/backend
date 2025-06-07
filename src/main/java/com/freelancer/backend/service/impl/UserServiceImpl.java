@@ -15,98 +15,71 @@ import java.util.*;
 @Service
 public class UserServiceImpl implements UserService {
 
-    @Autowired
-    private UserRepository userRepository;
+    @Autowired private UserRepository userRepository;
+    @Autowired private PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Override
-    @Transactional
-    public User registerUser(SignupRequest signupRequest) {
-        // Verificar se username ou email já existe
-        if (userRepository.existsByUsername(signupRequest.getUsername())) {
-            throw new RuntimeException("Erro: Username já está em uso!");
+    @Override @Transactional
+    public User registerUser(SignupRequest req) {
+        if (userRepository.existsByUsername(req.getUsername())) {
+            throw new RuntimeException("Username em uso");
         }
-        if (userRepository.existsByEmail(signupRequest.getEmail())) {
-            throw new RuntimeException("Erro: Email já está em uso!");
+        if (userRepository.existsByEmail(req.getEmail())) {
+            throw new RuntimeException("Email em uso");
         }
-
-        // Criar usuário com dados básicos
-        User user = User.builder()
-                .username(signupRequest.getUsername())
-                .email(signupRequest.getEmail())
-                .password(passwordEncoder.encode(signupRequest.getPassword()))
-                .fullName(signupRequest.getFullName())
-                .bio(signupRequest.getBio())
-                .skills(signupRequest.getSkills())
+        User u = User.builder()
+                .username(req.getUsername())
+                .email(req.getEmail())
+                .password(passwordEncoder.encode(req.getPassword()))
+                .fullName(req.getFullName())
+                .bio(req.getBio())
+                .skills(req.getSkills())
                 .build();
-
-        // Definir roles (padrão = ROLE_FREELANCER; mas pode vir na requisição)
-        Set<String> strRoles = signupRequest.getRoles();
         Set<Role> roles = new HashSet<>();
-
-        if (strRoles == null || strRoles.isEmpty()) {
+        if (req.getRoles() == null || req.getRoles().isEmpty()) {
             roles.add(Role.ROLE_FREELANCER);
         } else {
-            strRoles.forEach(r -> {
-                switch (r) {
-                    case "admin":
-                        roles.add(Role.ROLE_ADMIN);
-                        break;
-                    case "contractor":
-                        roles.add(Role.ROLE_CONTRACTOR);
-                        break;
-                    case "freelancer":
-                    default:
-                        roles.add(Role.ROLE_FREELANCER);
+            req.getRoles().forEach(r -> {
+                switch (r.toLowerCase()) {
+                    case "admin": roles.add(Role.ROLE_ADMIN); break;
+                    case "contractor": roles.add(Role.ROLE_CONTRACTOR); break;
+                    default: roles.add(Role.ROLE_FREELANCER);
                 }
             });
         }
-
-        user.setRoles(roles);
-        return userRepository.save(user);
+        u.setRoles(roles);
+        return userRepository.save(u);
     }
 
-    @Override
-    public Optional<User> findById(Long id) {
+    @Override public Optional<User> findById(Long id) {
         return userRepository.findById(id);
     }
 
-    @Override
-    public Optional<User> findByUsername(String username) {
-        return userRepository.findByUsername(username);
+    @Override public Optional<User> findByUsername(String uname) {
+        return userRepository.findByUsername(uname);
     }
 
-    @Override
-    public Optional<User> findByEmail(String email) {
+    @Override public Optional<User> findByEmail(String email) {
         return userRepository.findByEmail(email);
     }
 
-    @Override
-    public List<User> findAll() {
+    @Override public List<User> findAll() {
         return userRepository.findAll();
     }
 
-    @Override
-    @Transactional
-    public User updateUser(Long id, User userData) {
-        User user = userRepository.findById(id)
+    @Override @Transactional
+    public User updateUser(Long id, User data) {
+        User u = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
-
-        user.setFullName(userData.getFullName());
-        user.setBio(userData.getBio());
-        user.setSkills(userData.getSkills());
-        // Se quiser permitir troca de senha:
-        if (userData.getPassword() != null && !userData.getPassword().isBlank()) {
-            user.setPassword(passwordEncoder.encode(userData.getPassword()));
+        u.setFullName(data.getFullName());
+        u.setBio(data.getBio());
+        u.setSkills(data.getSkills());
+        if (data.getPassword() != null && !data.getPassword().isBlank()) {
+            u.setPassword(passwordEncoder.encode(data.getPassword()));
         }
-        // Não permitimos mudar roles aqui (poderia ter endpoint à parte para admin)
-        return userRepository.save(user);
+        return userRepository.save(u);
     }
 
-    @Override
-    public void deleteUser(Long id) {
+    @Override public void deleteUser(Long id) {
         userRepository.deleteById(id);
     }
 }
