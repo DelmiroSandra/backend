@@ -1,68 +1,52 @@
 package com.freelancer.backend.config;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 
 @Component
 public class JwtTokenUtil {
+    @Value("${jwt.secret}") private String secret;
+    @Value("${jwt.expiration}") private long expirationMs;
 
-    @Value("${jwt.secret}")
-    private String jwtSecretBase64; // secret em base64 ou string “simples”
-
-    @Value("${jwt.expiration}")
-    private Long jwtExpirationMs;
-
-    private Key getKey() {
-        // Se a chave for plain text, converter para bytes:
-        byte[] keyBytes = Decoders.BASE64.decode(jwtSecretBase64);
-        return Keys.hmacShaKeyFor(keyBytes);
+    private Key getSigningKey() {
+        // usa diretamente UTF-8 bytes
+        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    // Gerar token a partir do Authentication
-    public String generateJwtToken(Authentication authentication) {
-        UserDetails userPrincipal = (UserDetails) authentication.getPrincipal();
-
-        Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
-
+    public String generateJwtToken(org.springframework.security.core.Authentication auth) {
+        String user = auth.getName();
+        Date now = new Date(), exp = new Date(now.getTime() + expirationMs);
         return Jwts.builder()
-                .setSubject(userPrincipal.getUsername())
+                .setSubject(user)
                 .setIssuedAt(now)
-                .setExpiration(expiryDate)
-                .signWith(getKey(), SignatureAlgorithm.HS256)
+                .setExpiration(exp)
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    // Retorna username (subject) do token JWT
-    public String getUsernameFromJwtToken(String token) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(getKey())
+    public String getUsernameFromToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
                 .build()
                 .parseClaimsJws(token)
-                .getBody();
-
-        return claims.getSubject();
+                .getBody().getSubject();
     }
 
-    // Valida token: expiração e assinatura
-    public boolean validateJwtToken(String authToken) {
+    public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(getKey()).build().parseClaimsJws(authToken);
+            Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token);
             return true;
-        } catch (Exception ex) {
-            // ex: io.jsonwebtoken.ExpiredJwtException, UnsupportedJwtException etc.
-            System.out.println("JWT validation error: " + ex.getMessage());
+        } catch (JwtException ex) {
+            return false;
         }
-        return false;
     }
 }
