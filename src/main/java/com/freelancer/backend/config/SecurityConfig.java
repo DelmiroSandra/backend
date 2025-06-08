@@ -51,14 +51,16 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .authenticationProvider(authenticationProvider())   // <— aqui
+                .authenticationProvider(authenticationProvider())
                 .cors().and().csrf().disable()
                 .exceptionHandling().authenticationEntryPoint(entryPoint).and()
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS).and()
                 .authorizeHttpRequests()
+                .requestMatchers("/api/ping").permitAll()      // <<< liberamos o ping
                 .requestMatchers("/api/auth/**", "/v3/api-docs/**", "/swagger-ui/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/projects/**").permitAll()
-                .anyRequest().authenticated().and()
+                .anyRequest().authenticated()
+                .and()
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
